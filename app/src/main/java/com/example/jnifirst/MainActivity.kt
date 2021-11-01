@@ -55,6 +55,13 @@ class MainActivity : AppCompatActivity() {
         val cacheFieldMethodId = CacheFieldMethodId()
         cacheFieldMethodId.cacheFiledAndMethodInInJni()
 
+        //异常
+        val catchThrow = CatchThrow()
+        catchThrow.catchTrowInJni()
+
+        //jni_onload
+        val jniOnLoad = JniOnLoad()
+        jniOnLoad.jniOnLoad()
     }
 
     companion object {

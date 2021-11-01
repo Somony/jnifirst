@@ -4,6 +4,8 @@
 #include <jni.h>
 #include <string.h>
 #include <stdio.h>
+#include "include/log.h"
+#include "include/exception-util.h"
 
 JNIEXPORT jstring JNICALL
 Java_com_example_jnifirst_MyString_stringFromJNI(JNIEnv *env, jobject thiz) {
@@ -20,7 +22,7 @@ Java_com_example_jnifirst_MyString_getLine(JNIEnv *env, jobject thiz, jstring te
         //为新的字符串分配内存，若因内存不足会分配失败会返回NULL,并抛出OutOfMemory错误，但是不会改变程序的执行流
         return NULL;
     }
-    printf("%s", str);
+    LOGD("%s", str);
     //使用完毕后需要释字符串占用的内存
     (*env)->ReleaseStringUTFChars(env, text, str);
     //返回新创建的一个字符串
@@ -116,7 +118,7 @@ Java_com_example_jnifirst_InstanceFieldAccess_accessField(JNIEnv *env, jobject t
 
     //1.获取类引用（thiz是对象引用）
     jclass jcls = (*env)->GetObjectClass(env, thiz);
-    printf("in C:\n");
+    LOGD("in C:\n");
     //2. 获取成员字段id
     jfieldID fid = (*env)->GetFieldID(env, jcls, "s", "Ljava/lang/String;");
     if (fid == NULL) {
@@ -130,7 +132,7 @@ Java_com_example_jnifirst_InstanceFieldAccess_accessField(JNIEnv *env, jobject t
         //out of memory
         return;
     }
-    printf("c.s = %s\n", str);
+    LOGD("c.s = %s\n", str);
     (*env)->ReleaseStringUTFChars(env, jstr, str);
     //4.修改字段的值
     jstring newStr = (*env)->NewStringUTF(env, "123");
@@ -148,7 +150,7 @@ Java_com_example_jnifirst_StaticFieldAccess_accessStaticField(JNIEnv *env, jobje
 
     //1.获取类引用
     jclass jcls = (*env)->GetObjectClass(env, thiz);
-    printf("in C\n");
+    LOGD("in C\n");
     //2.获取静态成员变量字段id
     jfieldID sfid = (*env)->GetStaticFieldID(env, jcls, "si", "I");
     if (sfid == NULL) {
@@ -156,7 +158,7 @@ Java_com_example_jnifirst_StaticFieldAccess_accessStaticField(JNIEnv *env, jobje
     }
     //3.获取静态字段的值，静态变量，需要使用类引用
     jint intSi = (*env)->GetStaticIntField(env, jcls, sfid);
-    printf("c.si = %d", intSi);
+    LOGD("c.si = %d", intSi);
     //4.修改静态字段的值
     (*env)->SetStaticIntField(env, jcls, sfid, 200);
 }
@@ -167,7 +169,7 @@ Java_com_example_jnifirst_InstanceMethodCall_nativeMethod(JNIEnv *env, jobject t
 
     //1.获取类引用
     jclass jcls = (*env)->GetObjectClass(env, thiz);
-    printf("in C\n");
+    LOGD("in C\n");
     //2.获取方法id
     jmethodID mid = (*env)->GetMethodID(env, jcls, "callByJni", "()V");
     if (mid == NULL) {
@@ -183,7 +185,7 @@ Java_com_example_jnifirst_StaticMethodCall_staticNativeMethod(JNIEnv *env, jobje
 
     //1. 获取类引用
     jclass jcls = (*env)->GetObjectClass(env, thiz);
-    printf("in C:\n");
+    LOGD("in C:\n");
     //2. 获取静态方法id
     jmethodID smid = (*env)->GetStaticMethodID(env, jcls, "callback", "(I)Ljava/lang/String;");
     if (smid == NULL) {
@@ -193,7 +195,7 @@ Java_com_example_jnifirst_StaticMethodCall_staticNativeMethod(JNIEnv *env, jobje
     jint i = 100;
     jobject jReturnValue = (*env)->CallStaticObjectMethod(env, jcls, smid, i);
     const char *str = (*env)->GetStringUTFChars(env, jReturnValue, NULL);
-    printf("str from java method return :%s", str);
+    LOGD("str from java method return :%s", str);
 }
 
 /**
@@ -304,7 +306,7 @@ Java_com_example_jnifirst_CacheFieldMethodId_cacheFieldIdNative(JNIEnv *env, job
 
     //1. 获取类
     jclass jcls = (*env)->GetObjectClass(env, thiz);
-    printf("in C\n");
+    LOGD("in C\n");
     //2. 获取成员变量id
     if (sFieldId == NULL) {
         sFieldId = (*env)->GetFieldID(env, jcls, "sField", "I");
@@ -314,6 +316,142 @@ Java_com_example_jnifirst_CacheFieldMethodId_cacheFieldIdNative(JNIEnv *env, job
     }
     //3.给获取成员赋值
     jint sFieldValue = (*env)->GetIntField(env, thiz, sFieldId);
-    printf("sField value from java:%d", sFieldValue);
+    LOGD("sField value from java:%d", sFieldValue);
     (*env)->SetIntField(env, thiz, sFieldId, 100);
+}
+
+JNIEXPORT jstring JNICALL
+Java_com_example_jnifirst_ObjectReference_localRefNative(JNIEnv *env, jobject thiz) {
+    //局部引用在方法结束后会回收，使用static缓存局部变量是无效的（变量id，方法id哪些不属于局部对象引用）
+    //第一种： DeleteLocalRef可以手动释放局部引用
+    jclass jStrClass = (*env)->FindClass(env, "java/lang/String");
+    (*env)->DeleteLocalRef(env, jStrClass);
+
+    //第二种：EnsureLocalCapacity,PushLocalFrame,PopLocalFrame管理局部引用------没有了解清除，听说基本不会使用这种方式
+    if ((*env)->EnsureLocalCapacity(env, 10) < 0) {
+        //在当前线程中，通过传入一个容量capacity，限制局部引用创建的数量。
+        // 成功则返回0，否则返回一个负数，并抛出一个OutOfMemoryError。VM会自动确保至少可以创建16个局部引用。
+
+        //OOM
+        return NULL;
+    }
+
+    //在for循环中可以使用的最大局部引用数量
+    jint N_REFS = 10;
+    for (int i = 0; i < 10; ++i) {
+        if ((*env)->PushLocalFrame(env, N_REFS) < 0) {
+            //OOM
+        }
+        //create local object
+        //....
+
+        //销毁局部变量
+        (*env)->PopLocalFrame(env, NULL);
+    }
+
+    //返回局部引用，使用NewLocalRef
+    jstring jstr = MyNewString1(env, "hahha", strlen("hahha"));
+    return (*env)->NewLocalRef(env, jstr);
+}
+
+JNIEXPORT void JNICALL
+Java_com_example_jnifirst_ObjectReference_globalRefNative(JNIEnv *env, jobject thiz) {
+    static jstring stringClass;
+
+    //创建全局引用过程
+    if (stringClass == NULL) {
+        //1. 创建局部引用
+        jclass jstrLocalRef = (*env)->FindClass(env, "java/lang/String");
+        if (jstrLocalRef == NULL) {
+            return;
+        }
+        //2. 将局部引用保存在全局引用中
+        stringClass = (*env)->NewGlobalRef(env, jstrLocalRef);
+        //3. 局部引用不再使用，可以销毁
+        (*env)->DeleteLocalRef(env, jstrLocalRef);
+        //4. 判断全局引用是否创建成功
+        if (stringClass == NULL) {
+            return;
+        }
+    }
+    //......
+}
+
+JNIEXPORT void JNICALL
+Java_com_example_jnifirst_ObjectReference_globalWeakRefNative(JNIEnv *env, jobject thiz) {
+    static jstring stringClass;
+
+    //创建全局弱引用过程，判断弱引用是否被回收；使用obj == NULL或者IsSameObject(env,obj1,NULL)==JNI_TRUE均可
+    //若是判断对象相等，需要使用IsSameObject(env,obj1,obj2)
+    if (stringClass == NULL) {
+        //1. 创建局部引用
+        jclass jstrLocalRef = (*env)->FindClass(env, "java/lang/String");
+        if (jstrLocalRef == NULL) {
+            return;
+        }
+        //2. 将局部引用保存在全局弱引用中
+        stringClass = (*env)->NewWeakGlobalRef(env, jstrLocalRef);
+        //3. 局部引用不再使用，可以销毁
+        (*env)->DeleteLocalRef(env, jstrLocalRef);
+        //4. 判断全局弱引用是否创建成功
+        if (stringClass == NULL) {
+            return;
+        }
+    }
+    //....
+}
+
+JNIEXPORT void JNICALL
+Java_com_example_jnifirst_CatchThrow_throwInJni(JNIEnv *env, jobject thiz) {
+    //jni中检查java方法中的异常；并抛出新的异常，处理异常
+
+    //调用java方法，并检查异常
+    jclass cls = (*env)->GetObjectClass(env, thiz);
+    jmethodID mid = (*env)->GetMethodID(env, cls, "callbackThrow", "()V");
+    if (mid == NULL) {
+        return;
+    }
+    (*env)->CallVoidMethod(env, thiz, mid);
+    //检查异常,ExceptionOccurred获取异常的指针
+    jthrowable exc = (*env)->ExceptionOccurred(env);
+    if (exc) {
+        //发生异常，打印异常信息，clear异常,这样相当于异常被抓住
+        (*env)->ExceptionDescribe(env);
+        (*env)->ExceptionClear(env);
+
+        //抛出新的异常,出现异常后若不做clear,就做资源回收操作，不应该继续进行后续操作
+        //jclass illegalExceptionCls = (*env)->FindClass(env, "java/lang/IllegalArgumentException");
+        //(*env)->ThrowNew(env, illegalExceptionCls, "throw exception from C");
+
+        //使用异常工具函数
+        JUN_ThrowByName(env, "java/lang/IllegalArgumentException", "throw exception from C util");
+    }
+}
+
+
+void nativeFoo(JNIEnv *env, jobject thiz) {
+    LOGD("method register from JNI_OnLoad");
+}
+
+JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved) {
+    //获取env
+    JNIEnv *env;
+    if ((*vm)->GetEnv(vm, (void **) &env, JNI_VERSION_1_6) != JNI_OK) {
+        return JNI_ERR;
+    }
+
+    char *className = "com/example/jnifirst/JniOnLoad";
+    jclass c = (*env)->FindClass(env, className);
+    if (c == NULL) {
+        return JNI_ERR;
+    }
+    //注册本地方法
+    static const JNINativeMethod method[] = {
+            {"nativeFoo", "()V", (void *) nativeFoo}
+    };
+    int rc = (*env)->RegisterNatives(env, c, method, sizeof(method) / sizeof(method[0]));
+    if (rc != JNI_OK) {
+        return rc;
+    }
+    return JNI_VERSION_1_6;
 }
